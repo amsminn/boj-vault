@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120">
+  <defs>
+    <linearGradient id="vaultGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="handleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Vault body -->
+  <rect x="16" y="16" width="88" height="88" rx="16" fill="url(#vaultGrad)"/>
+
+  <!-- Inner border -->
+  <rect x="26" y="26" width="68" height="68" rx="10" fill="none" stroke="#93C5FD" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Vault door circle -->
+  <circle cx="60" cy="60" r="22" fill="none" stroke="#E0F2FE" stroke-width="2.5"/>
+
+  <!-- Handle spokes -->
+  <line x1="60" y1="42" x2="60" y2="50" stroke="#E0F2FE" stroke-width="2" stroke-linecap="round"/>
+  <line x1="60" y1="70" x2="60" y2="78" stroke="#E0F2FE" stroke-width="2" stroke-linecap="round"/>
+  <line x1="42" y1="60" x2="50" y2="60" stroke="#E0F2FE" stroke-width="2" stroke-linecap="round"/>
+  <line x1="70" y1="60" x2="78" y2="60" stroke="#E0F2FE" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Center hub -->
+  <circle cx="60" cy="60" r="5" fill="url(#handleGrad)"/>
+
+  <!-- Lock indicator -->
+  <circle cx="88" cy="32" r="4" fill="#34D399"/>
+
+  <!-- Text: boj-vault -->
+  <text x="128" y="70" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="42" font-weight="700" fill="#1E293B">
+    boj<tspan fill="#3B82F6">-</tspan><tspan fill="#1E293B">vault</tspan>
+  </text>
+</svg>

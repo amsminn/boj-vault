@@ -1,0 +1,23 @@
+{
+  "name": "boj-vault",
+  "version": "0.1.0",
+  "description": "백준 온라인 저지 개인 데이터 백업 도구",
+  "type": "module",
+  "bin": {
+    "boj-vault": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli/index.js backup",
+    "dev": "tsx src/cli/index.ts backup"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
