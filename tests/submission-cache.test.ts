@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -407,5 +407,67 @@ describe('resume 시나리오 통합', () => {
     const final = await loadCache(tempDir);
     expect(final!.complete).toBe(true);
     expect(final!.submissions).toHaveLength(4);
+  });
+});
+
+describe('atomic write — 손상된 캐시 복원 (#2)', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'boj-vault-test-'));
+  });
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('손상된 JSON이면 loadCache가 null 반환', async () => {
+    await writeFile(
+      join(tempDir, 'submissions-cache.json'),
+      '{"lastSubmissionId":50000,"pageN',  // 잘린 JSON
+    );
+
+    expect(await loadCache(tempDir)).toBeNull();
+  });
+
+  it('saveCache 후 .tmp 파일이 남지 않음', async () => {
+    const cache: SubmissionListCache = {
+      lastSubmissionId: 50000,
+      pageNum: 1,
+      complete: false,
+      submissions: [makeMeta(50000, 1000)],
+    };
+
+    await saveCache(tempDir, cache);
+
+    // .tmp 파일은 rename으로 대체되어 존재하지 않아야 함
+    await expect(
+      access(join(tempDir, 'submissions-cache.json.tmp')),
+    ).rejects.toThrow();
+
+    // 본 파일은 정상
+    const loaded = await loadCache(tempDir);
+    expect(loaded).toEqual(cache);
+  });
+
+  it('기존 캐시가 있을 때 saveCache는 이전 데이터를 atomic하게 교체', async () => {
+    const old: SubmissionListCache = {
+      lastSubmissionId: 50000,
+      pageNum: 1,
+      complete: false,
+      submissions: [makeMeta(50000, 1000)],
+    };
+    await saveCache(tempDir, old);
+
+    const updated: SubmissionListCache = {
+      lastSubmissionId: 40000,
+      pageNum: 2,
+      complete: false,
+      submissions: [makeMeta(50000, 1000), makeMeta(40000, 2000)],
+    };
+    await saveCache(tempDir, updated);
+
+    const loaded = await loadCache(tempDir);
+    expect(loaded!.pageNum).toBe(2);
+    expect(loaded!.submissions).toHaveLength(2);
   });
 });
