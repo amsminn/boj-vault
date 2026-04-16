@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/cli/index.js backup",
-    "dev": "tsx src/cli/index.ts backup"
+    "dev": "tsx src/cli/index.ts backup",
+    "test": "vitest run"
   },
   "dependencies": {
     "commander": "^13.1.0",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^22.15.2",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.4"
   }
 }
