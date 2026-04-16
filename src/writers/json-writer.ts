@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
@@ -11,11 +11,26 @@ async function ensureParentDir(filePath: string): Promise<void> {
 /**
  * Write data as formatted JSON (2-space indent).
  * Ensures parent directory exists before writing.
+ *
+ * When `atomic` is true, writes to a temporary file first and then renames it
+ * into place. This prevents partial/corrupt files when the process is
+ * interrupted (e.g. SIGINT) mid-write.
  */
-export async function writeJson(filePath: string, data: unknown): Promise<void> {
+export async function writeJson(
+  filePath: string,
+  data: unknown,
+  { atomic = false }: { atomic?: boolean } = {},
+): Promise<void> {
   await ensureParentDir(filePath);
   const json = JSON.stringify(data, null, 2) + '\n';
-  await writeFile(filePath, json, 'utf-8');
+
+  if (atomic) {
+    const tmp = filePath + '.tmp';
+    await writeFile(tmp, json, 'utf-8');
+    await rename(tmp, filePath);
+  } else {
+    await writeFile(filePath, json, 'utf-8');
+  }
 }
 
 /**

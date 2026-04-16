@@ -41,7 +41,7 @@ export async function saveCache(
   outputDir: string,
   cache: SubmissionListCache,
 ): Promise<void> {
-  await writeJson(join(outputDir, CACHE_FILENAME), cache);
+  await writeJson(join(outputDir, CACHE_FILENAME), cache, { atomic: true });
 }
 
 /**
@@ -149,6 +149,8 @@ export async function scrapeSubmissions(
 
   // Continue or start Phase 1 pagination
   if (!phase1Complete) {
+    let reachedEnd = false;
+
     // eslint-disable-next-line no-constant-condition
     while (true) {
       pageNum++;
@@ -170,6 +172,7 @@ export async function scrapeSubmissions(
       // Stop if the page returned no submissions
       if (submissions.length === 0) {
         log.info(`페이지 ${pageNum}: 제출 없음 — 수집 종료`);
+        reachedEnd = true;
         break;
       }
 
@@ -197,19 +200,22 @@ export async function scrapeSubmissions(
       // Check if there are more pages
       if (!morePages) {
         log.info('마지막 페이지 도달 — 수집 종료');
+        reachedEnd = true;
         break;
       }
 
       await rateLimiter.waitPagination();
     }
 
-    // Mark Phase 1 as complete
-    await saveCache(config.outputDir, {
-      lastSubmissionId,
-      pageNum,
-      complete: true,
-      submissions: allSubmissions.map(({ sourceCode: _, ...rest }) => rest),
-    });
+    // Only mark complete when all pages have been fetched
+    if (reachedEnd) {
+      await saveCache(config.outputDir, {
+        lastSubmissionId,
+        pageNum,
+        complete: true,
+        submissions: allSubmissions.map(({ sourceCode: _, ...rest }) => rest),
+      });
+    }
   }
 
   log.info(`총 ${allSubmissions.length}건의 제출 수집 완료`);

@@ -1,8 +1,7 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export interface ProgressData {
-  lastSubmissionPage?: number;
   completedSubmissions: Set<number>;
   completedProblems: Set<number>;
   completedAuthored: Set<number>;
@@ -11,7 +10,6 @@ export interface ProgressData {
 }
 
 interface ProgressJSON {
-  lastSubmissionPage?: number;
   completedSubmissions: number[];
   completedProblems: number[];
   completedAuthored: number[];
@@ -37,14 +35,6 @@ export class ProgressTracker {
     return this.data;
   }
 
-  get lastSubmissionPage(): number | undefined {
-    return this.data.lastSubmissionPage;
-  }
-
-  set lastSubmissionPage(page: number | undefined) {
-    this.data.lastSubmissionPage = page;
-  }
-
   get phase(): string | undefined {
     return this.data.phase;
   }
@@ -68,7 +58,6 @@ export class ProgressTracker {
     await mkdir(dir, { recursive: true });
 
     const json: ProgressJSON = {
-      lastSubmissionPage: this.data.lastSubmissionPage,
       completedSubmissions: [...this.data.completedSubmissions],
       completedProblems: [...this.data.completedProblems],
       completedAuthored: [...this.data.completedAuthored],
@@ -76,7 +65,9 @@ export class ProgressTracker {
       phase: this.data.phase,
     };
 
-    await writeFile(this.filePath, JSON.stringify(json, null, 2), 'utf-8');
+    const tmp = this.filePath + '.tmp';
+    await writeFile(tmp, JSON.stringify(json, null, 2), 'utf-8');
+    await rename(tmp, this.filePath);
   }
 
   async load(): Promise<void> {
@@ -92,7 +83,6 @@ export class ProgressTracker {
     const json: ProgressJSON = JSON.parse(raw);
 
     this.data = {
-      lastSubmissionPage: json.lastSubmissionPage,
       completedSubmissions: new Set(json.completedSubmissions ?? []),
       completedProblems: new Set(json.completedProblems ?? []),
       completedAuthored: new Set(json.completedAuthored ?? []),
