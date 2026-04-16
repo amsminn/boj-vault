@@ -172,7 +172,7 @@ export async function scrapeSubmissions(
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           log.warn(`페이지 ${pageNum}: 시도 ${attempt + 1} 실패 — ${msg}`);
-          await rateLimiter.backoff(attempt);
+          await rateLimiter.waitPagination();
         }
       }
 
@@ -286,7 +286,7 @@ export async function scrapeSubmissions(
         log.warn(
           `제출 ${submissionId}: 시도 ${attempt + 1} 실패 — ${msg}`,
         );
-        await rateLimiter.backoff(attempt);
+        await rateLimiter.wait();
       }
     }
 
