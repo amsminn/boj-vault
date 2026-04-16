@@ -7,6 +7,7 @@ import { ProgressTracker } from '../core/progress.js';
 import {
   parseSubmissionTable,
   parseSourceCode,
+  parseSourceProblemId,
   hasNextPage,
 } from '../parsers/submission.js';
 import { writeJson, writeSourceCode } from '../writers/json-writer.js';
@@ -228,7 +229,7 @@ export async function scrapeSubmissions(
 
   for (const submission of allSubmissions) {
     current++;
-    const { submissionId, problemId } = submission;
+    const { submissionId } = submission;
 
     // Skip already completed submissions (resume support)
     if (progress.isCompleted('submissions', submissionId)) {
@@ -244,20 +245,32 @@ export async function scrapeSubmissions(
       try {
         const sourceUrl = `https://www.acmicpc.net/source/${submissionId}`;
 
-        const sourceCode = await withPage(context, sourceUrl, async (page) => {
+        const { sourceCode, resolvedProblemId } = await withPage(context, sourceUrl, async (page) => {
           // Check if redirected to login page
           if (page.url().includes('/login')) {
             log.error(
               `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
             );
-            return '';
+            return { sourceCode: '', resolvedProblemId: 0 };
           }
 
-          return await parseSourceCode(page);
+          const [code, pid] = await Promise.all([
+            parseSourceCode(page),
+            parseSourceProblemId(page),
+          ]);
+          return { sourceCode: code, resolvedProblemId: pid };
         });
 
         if (sourceCode) {
           submission.sourceCode = sourceCode;
+        }
+
+        // Patch problemId for contest submissions (Phase 1 sets problemId=0)
+        if (resolvedProblemId > 0 && submission.problemId === 0) {
+          log.info(
+            `제출 ${submissionId}: 대회 문제 ID 확인 → ${resolvedProblemId}`,
+          );
+          submission.problemId = resolvedProblemId;
         }
 
         success = true;
@@ -280,10 +293,21 @@ export async function scrapeSubmissions(
     }
 
     // Save submission files
+    // Resolved → submissions/{problemId}/, unresolved contest → submissions/contest-{contestId}/
+    const problemDir = submission.problemId > 0
+      ? String(submission.problemId)
+      : `contest-${submission.contestId ?? 'unknown'}`;
+
+    if (submission.problemId === 0) {
+      log.warn(
+        `제출 ${submissionId}: 문제 ID를 확인할 수 없습니다 — ${problemDir}/ 에 저장`,
+      );
+    }
+
     const submissionDir = join(
       config.outputDir,
       'submissions',
-      String(problemId),
+      problemDir,
     );
     await ensureDir(submissionDir);
 

@@ -14,6 +14,7 @@ export interface UserProfile {
 export interface Submission {
   submissionId: number;
   problemId: number;
+  contestId?: number;
   problemTitle?: string;
   result: string;         // e.g. "맞았습니다!!", "틀렸습니다", etc.
   memory: number;         // KB

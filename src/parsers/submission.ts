@@ -25,8 +25,14 @@ export async function parseSubmissionTable(page: Page): Promise<Submission[]> {
         // Problem cell contains both ID and title — extract ID from the link
         const problemLink = cells[2].querySelector('a[href*="/problem/"]');
         const problemHref = problemLink ? problemLink.getAttribute('href') : '';
-        const problemMatch = problemHref ? problemHref.match(/\\/problem\\/(\\d+)/) : null;
-        const problemId = problemMatch ? parseInt(problemMatch[1], 10) : 0;
+
+        // Contest URL: /contest/problem/{contestId}/{localNum}
+        // Regular URL: /problem/{id}
+        const contestMatch = problemHref ? problemHref.match(/\\/contest\\/problem\\/(\\d+)\\/(\\d+)/) : null;
+        const regularMatch = !contestMatch && problemHref ? problemHref.match(/\\/problem\\/(\\d+)/) : null;
+
+        const problemId = regularMatch ? parseInt(regularMatch[1], 10) : 0;
+        const contestId = contestMatch ? parseInt(contestMatch[1], 10) : undefined;
         const problemTitle = problemLink ? problemLink.getAttribute('data-original-title') || problemLink.textContent.trim() : '';
 
         const result = cells[3].querySelector('.result-text')
@@ -44,10 +50,11 @@ export async function parseSubmissionTable(page: Page): Promise<Submission[]> {
           ? (timeAnchor.getAttribute('data-original-title') || timeAnchor.getAttribute('title') || '').trim()
           : cells[8].textContent.trim();
 
-        if (submissionId && problemId) {
+        if (submissionId && (problemId || contestId)) {
           submissions.push({
             submissionId,
             problemId,
+            contestId: contestId || undefined,
             problemTitle: problemTitle || undefined,
             result,
             memory,
@@ -86,6 +93,27 @@ export async function parseSourceCode(page: Page): Promise<string> {
   }
 
   return '';
+}
+
+/**
+ * Extract the real BOJ problem ID from the /source/{submissionId} page.
+ *
+ * The source page contains a link to the actual problem (e.g., /problem/12345),
+ * which is always the canonical BOJ problem number — even for contest submissions.
+ * Returns 0 if the problem ID cannot be determined.
+ */
+export async function parseSourceProblemId(page: Page): Promise<number> {
+  return page.evaluate(`
+    (() => {
+      const links = document.querySelectorAll('a[href^="/problem/"]');
+      for (const link of links) {
+        const href = link.getAttribute('href') || '';
+        const match = href.match(/^\\/problem\\/(\\d+)$/);
+        if (match) return parseInt(match[1], 10);
+      }
+      return 0;
+    })()
+  `) as Promise<number>;
 }
 
 /**

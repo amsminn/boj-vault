@@ -13,6 +13,10 @@ let mockPhase1: (url: string) => unknown = () => ({
   subs: [],
   morePages: false,
 });
+let mockPhase2: (url: string) => unknown = () => ({
+  sourceCode: '',
+  resolvedProblemId: 0,
+});
 
 vi.mock('../src/core/utils.js', async () => {
   const actual = await vi.importActual('../src/core/utils.js');
@@ -20,7 +24,7 @@ vi.mock('../src/core/utils.js', async () => {
     ...(actual as object),
     withPage: async (_ctx: unknown, url: string, _fn: unknown) => {
       calledUrls.push(url);
-      if (url.includes('/source/')) return ''; // Phase 2: source code
+      if (url.includes('/source/')) return mockPhase2(url);
       return mockPhase1(url); // Phase 1: submission list
     },
   };
@@ -76,6 +80,7 @@ describe('scrapeSubmissions — resume 점프 동작', () => {
     tempDir = await mkdtemp(join(tmpdir(), 'boj-resume-'));
     calledUrls.length = 0;
     mockPhase1 = () => ({ subs: [], morePages: false });
+    mockPhase2 = () => ({ sourceCode: '', resolvedProblemId: 0 });
   });
 
   afterEach(async () => {
@@ -268,5 +273,61 @@ describe('scrapeSubmissions — resume 점프 동작', () => {
     expect(statusUrls()).toEqual([
       'https://www.acmicpc.net/status?user_id=testuser',
     ]);
+  });
+
+  it('contest submission: problemId=0 → Phase 2에서 실제 ID로 해결', async () => {
+    // Phase 1: contest submission with problemId=0, contestId=963
+    mockPhase1 = () => ({
+      subs: [{ ...makeMeta(99999, 0), contestId: 963 }],
+      morePages: false,
+    });
+
+    // Phase 2: source page resolves real problem ID
+    mockPhase2 = () => ({
+      sourceCode: 'int main() {}',
+      resolvedProblemId: 27939,
+    });
+
+    const progress = new ProgressTracker(join(tempDir, 'progress.json'));
+    const result = await scrapeSubmissions(
+      {} as BrowserContext,
+      makeConfig(tempDir, false),
+      noopLimiter as any,
+      progress,
+    );
+
+    // problemId가 0 → 27939로 해결되었는지 확인
+    expect(result[0].problemId).toBe(27939);
+    expect(result[0].contestId).toBe(963);
+  });
+
+  it('contest submission: 해결 불가 시 contest-{id}/ 에 저장', async () => {
+    // Phase 1: contest submission
+    mockPhase1 = () => ({
+      subs: [{ ...makeMeta(88888, 0), contestId: 500 }],
+      morePages: false,
+    });
+
+    // Phase 2: source page cannot resolve (returns 0)
+    mockPhase2 = () => ({
+      sourceCode: 'print("hello")',
+      resolvedProblemId: 0,
+    });
+
+    const progress = new ProgressTracker(join(tempDir, 'progress.json'));
+    await scrapeSubmissions(
+      {} as BrowserContext,
+      makeConfig(tempDir, false),
+      noopLimiter as any,
+      progress,
+    );
+
+    // contest-500/ 디렉토리에 저장되었는지 확인
+    const { readFile: rf } = await import('node:fs/promises');
+    const metaPath = join(tempDir, 'submissions', 'contest-500', '88888.json');
+    const meta = JSON.parse(await rf(metaPath, 'utf-8'));
+    expect(meta.submissionId).toBe(88888);
+    expect(meta.contestId).toBe(500);
+    expect(meta.problemId).toBe(0);
   });
 });
