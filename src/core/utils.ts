@@ -65,21 +65,43 @@ export async function safeGoto(
   }
 }
 
+function isRetryableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('서버 에러 HTTP') ||
+    msg.includes('Timeout') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('net::ERR_')
+  );
+}
+
 /**
  * Open a new tab, navigate to url, run callback, close tab.
  * Keeps the original tabs untouched — preserves login session.
+ * Retries indefinitely on server errors (5xx) and timeouts.
  */
 export async function withPage<T>(
   context: BrowserContext,
   url: string,
   fn: (page: Page) => Promise<T>,
 ): Promise<T> {
-  const page = await context.newPage();
-  try {
-    await safeGoto(page, url);
-    return await fn(page);
-  } finally {
-    await page.close();
+  for (let attempt = 1; ; attempt++) {
+    const page = await context.newPage();
+    try {
+      await safeGoto(page, url);
+      return await fn(page);
+    } catch (err) {
+      if (!isRetryableError(err)) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[${new Date().toISOString()}] [WARN] [retry] ${url} 시도 ${attempt} 실패 — ${msg}`,
+      );
+      await sleep(5_000);
+    } finally {
+      await page.close();
+    }
   }
 }
 

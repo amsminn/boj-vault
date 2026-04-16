@@ -160,23 +160,12 @@ export async function scrapeSubmissions(
         url += `&top=${lastSubmissionId - 1}`;
       }
 
-      let pageResult!: { subs: Submission[]; morePages: boolean };
-      for (let attempt = 0; ; attempt++) {
-        try {
-          pageResult = await withPage(context, url, async (page) => {
-            const subs = await parseSubmissionTable(page);
-            const morePages = subs.length > 0 ? await hasNextPage(page) : false;
-            return { subs, morePages };
-          });
-          break;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`페이지 ${pageNum}: 시도 ${attempt + 1} 실패 — ${msg}`);
-          await rateLimiter.waitPagination();
-        }
-      }
+      const { subs, morePages } = await withPage(context, url, async (page) => {
+        const subs = await parseSubmissionTable(page);
+        const morePages = subs.length > 0 ? await hasNextPage(page) : false;
+        return { subs, morePages };
+      });
 
-      const { subs, morePages } = pageResult;
       const submissions = subs;
 
       // Stop if the page returned no submissions
@@ -248,46 +237,34 @@ export async function scrapeSubmissions(
     // Log progress periodically (every submission, since each takes a while)
     log.info(`소스코드 수집 중 [${current}/${total}]`);
 
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const sourceUrl = `https://www.acmicpc.net/source/${submissionId}`;
+    const sourceUrl = `https://www.acmicpc.net/source/${submissionId}`;
 
-        const { sourceCode, resolvedProblemId } = await withPage(context, sourceUrl, async (page) => {
-          // Check if redirected to login page
-          if (page.url().includes('/login')) {
-            log.error(
-              `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
-            );
-            return { sourceCode: '', resolvedProblemId: 0 };
-          }
-
-          const [code, pid] = await Promise.all([
-            parseSourceCode(page),
-            parseSourceProblemId(page),
-          ]);
-          return { sourceCode: code, resolvedProblemId: pid };
-        });
-
-        if (sourceCode) {
-          submission.sourceCode = sourceCode;
-        }
-
-        // Patch problemId for contest submissions (Phase 1 sets problemId=0)
-        if (resolvedProblemId > 0 && submission.problemId === 0) {
-          log.info(
-            `제출 ${submissionId}: 대회 문제 ID 확인 → ${resolvedProblemId}`,
-          );
-          submission.problemId = resolvedProblemId;
-        }
-
-        break;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        log.warn(
-          `제출 ${submissionId}: 시도 ${attempt + 1} 실패 — ${msg}`,
+    const { sourceCode, resolvedProblemId } = await withPage(context, sourceUrl, async (page) => {
+      // Check if redirected to login page
+      if (page.url().includes('/login')) {
+        log.error(
+          `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
         );
-        await rateLimiter.wait();
+        return { sourceCode: '', resolvedProblemId: 0 };
       }
+
+      const [code, pid] = await Promise.all([
+        parseSourceCode(page),
+        parseSourceProblemId(page),
+      ]);
+      return { sourceCode: code, resolvedProblemId: pid };
+    });
+
+    if (sourceCode) {
+      submission.sourceCode = sourceCode;
+    }
+
+    // Patch problemId for contest submissions (Phase 1 sets problemId=0)
+    if (resolvedProblemId > 0 && submission.problemId === 0) {
+      log.info(
+        `제출 ${submissionId}: 대회 문제 ID 확인 → ${resolvedProblemId}`,
+      );
+      submission.problemId = resolvedProblemId;
     }
 
     // Save submission files
