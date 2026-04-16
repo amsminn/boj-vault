@@ -48,7 +48,11 @@ export async function safeGoto(
 ): Promise<Response | null> {
   const timeout = options?.timeout ?? 60_000;
   try {
-    return await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    if (response && response.status() >= 500) {
+      throw new Error(`서버 에러 HTTP ${response.status()} — ${url}`);
+    }
+    return response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('ERR_ABORTED') || msg.includes('ERR_BLOCKED')) {

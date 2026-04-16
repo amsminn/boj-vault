@@ -162,12 +162,29 @@ export async function scrapeSubmissions(
         url += `&top=${lastSubmissionId - 1}`;
       }
 
-      const { subs, morePages } = await withPage(context, url, async (page) => {
-        const subs = await parseSubmissionTable(page);
-        const morePages = subs.length > 0 ? await hasNextPage(page) : false;
-        return { subs, morePages };
-      });
+      let pageResult: { subs: Submission[]; morePages: boolean } | undefined;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          pageResult = await withPage(context, url, async (page) => {
+            const subs = await parseSubmissionTable(page);
+            const morePages = subs.length > 0 ? await hasNextPage(page) : false;
+            return { subs, morePages };
+          });
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn(`페이지 ${pageNum}: 시도 ${attempt + 1}/${MAX_RETRIES} 실패 — ${msg}`);
+          if (attempt < MAX_RETRIES - 1) {
+            await rateLimiter.backoff(attempt);
+          }
+        }
+      }
 
+      if (!pageResult) {
+        throw new Error(`페이지 ${pageNum} 수집 실패 — ${MAX_RETRIES}회 재시도 후 중단`);
+      }
+
+      const { subs, morePages } = pageResult;
       const submissions = subs;
 
       // Stop if the page returned no submissions
@@ -286,9 +303,9 @@ export async function scrapeSubmissions(
       }
     }
 
-    if (!success && !submission.sourceCode) {
-      log.error(
-        `제출 ${submissionId}: 소스코드 수집 실패 — 메타데이터만 저장합니다`,
+    if (!success) {
+      throw new Error(
+        `제출 ${submissionId} 소스코드 수집 실패 — ${MAX_RETRIES}회 재시도 후 중단`,
       );
     }
 
