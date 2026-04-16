@@ -14,8 +14,6 @@ import { writeJson, writeSourceCode } from '../writers/json-writer.js';
 import { ensureDir, createLogger, withPage, langToExt } from '../core/utils.js';
 import type { Logger } from '../core/utils.js';
 
-const MAX_RETRIES = 3;
-
 // ------------------------------------------------------------------
 // Submission list cache — Phase 1 resume support
 // ------------------------------------------------------------------
@@ -162,8 +160,8 @@ export async function scrapeSubmissions(
         url += `&top=${lastSubmissionId - 1}`;
       }
 
-      let pageResult: { subs: Submission[]; morePages: boolean } | undefined;
-      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      let pageResult!: { subs: Submission[]; morePages: boolean };
+      for (let attempt = 0; ; attempt++) {
         try {
           pageResult = await withPage(context, url, async (page) => {
             const subs = await parseSubmissionTable(page);
@@ -173,15 +171,9 @@ export async function scrapeSubmissions(
           break;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`페이지 ${pageNum}: 시도 ${attempt + 1}/${MAX_RETRIES} 실패 — ${msg}`);
-          if (attempt < MAX_RETRIES - 1) {
-            await rateLimiter.backoff(attempt);
-          }
+          log.warn(`페이지 ${pageNum}: 시도 ${attempt + 1} 실패 — ${msg}`);
+          await rateLimiter.backoff(attempt);
         }
-      }
-
-      if (!pageResult) {
-        throw new Error(`페이지 ${pageNum} 수집 실패 — ${MAX_RETRIES}회 재시도 후 중단`);
       }
 
       const { subs, morePages } = pageResult;
@@ -256,9 +248,7 @@ export async function scrapeSubmissions(
     // Log progress periodically (every submission, since each takes a while)
     log.info(`소스코드 수집 중 [${current}/${total}]`);
 
-    let success = false;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    for (let attempt = 0; ; attempt++) {
       try {
         const sourceUrl = `https://www.acmicpc.net/source/${submissionId}`;
 
@@ -290,23 +280,14 @@ export async function scrapeSubmissions(
           submission.problemId = resolvedProblemId;
         }
 
-        success = true;
         break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         log.warn(
-          `제출 ${submissionId}: 시도 ${attempt + 1}/${MAX_RETRIES} 실패 — ${msg}`,
+          `제출 ${submissionId}: 시도 ${attempt + 1} 실패 — ${msg}`,
         );
-        if (attempt < MAX_RETRIES - 1) {
-          await rateLimiter.backoff(attempt);
-        }
+        await rateLimiter.backoff(attempt);
       }
-    }
-
-    if (!success) {
-      throw new Error(
-        `제출 ${submissionId} 소스코드 수집 실패 — ${MAX_RETRIES}회 재시도 후 중단`,
-      );
     }
 
     // Save submission files
