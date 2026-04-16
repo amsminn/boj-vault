@@ -4,3 +4,4 @@ output/
 progress.json
 *.tsbuildinfo
 .env
+.worktrees/
