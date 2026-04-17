@@ -4,7 +4,8 @@ import type { BackupConfig } from '../types/index.js';
 import { RateLimiter } from '../core/rate-limiter.js';
 import { ProgressTracker } from '../core/progress.js';
 import { createLogger, withPage, ensureDir } from '../core/utils.js';
-import { parseProblemPage, parseProblemList } from '../parsers/problem.js';
+import { parseProblemPage } from '../parsers/problem.js';
+import { paginateProblemList } from '../parsers/paginate.js';
 import { writeJson, writeHtml } from '../writers/json-writer.js';
 
 export async function scrapeSolved(
@@ -52,12 +53,12 @@ export async function scrapeSolved(
   // 3. Fallback: if no problems found on profile, try the problemset page
   if (problems.length === 0) {
     log.warn('프로필에서 맞은 문제를 찾을 수 없음 -- 대체 경로 시도');
-    await rateLimiter.wait();
+    // paginateProblemList handles its own between-page pacing via
+    // rateLimiter.waitPagination(); the prior profile fetch has already
+    // closed, so we skip the extra rateLimiter.wait() here.
     const fallbackUrl = `https://www.acmicpc.net/problemset?sort=no_asc&user=${config.user}&result=ac`;
-    log.info(`대체 페이지 이동: ${fallbackUrl}`);
-    problems = await withPage(context, fallbackUrl, async (page) => {
-      return await parseProblemList(page);
-    });
+    log.info(`대체 페이지 수집 시작: ${fallbackUrl}`);
+    problems = await paginateProblemList(context, fallbackUrl, rateLimiter, log);
   }
 
   log.info(`맞은 문제 ${problems.length}개 발견`);
