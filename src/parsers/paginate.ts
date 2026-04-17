@@ -110,12 +110,18 @@ export async function paginateProblemList(
     });
   };
 
+  // Skip the pagination delay before the first fetch of this run — whether
+  // starting fresh (pageNum=0) or resuming from a cached pageNum>0, there's
+  // no prior in-session request to pace against.
+  let firstFetch = true;
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     pageNum++;
-    if (pageNum > 1) {
+    if (!firstFetch) {
       await rateLimiter.waitPagination();
     }
+    firstFetch = false;
 
     const url = `${baseUrl}${separator}page=${pageNum}`;
     const { problems, hasNext } = await withPage(context, url, async (page) => {
