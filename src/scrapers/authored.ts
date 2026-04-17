@@ -4,7 +4,8 @@ import type { BackupConfig, AuthoredProblem } from '../types/index.js';
 import { RateLimiter } from '../core/rate-limiter.js';
 import { ProgressTracker } from '../core/progress.js';
 import { ensureDir, createLogger, withPage } from '../core/utils.js';
-import { parseProblemPage, parseProblemList } from '../parsers/problem.js';
+import { parseProblemPage } from '../parsers/problem.js';
+import { paginateProblemList } from '../parsers/paginate.js';
 import { writeJson, writeHtml } from '../writers/json-writer.js';
 
 export async function scrapeAuthored(
@@ -15,12 +16,19 @@ export async function scrapeAuthored(
 ): Promise<void> {
   const log = createLogger('authored');
 
-  // 1. Navigate to authored problems list
-  const listUrl = `https://www.acmicpc.net/problem/author/${config.user}/1`;
-  log.info(`출제한 문제 목록 페이지 이동: ${listUrl}`);
-  const problems = await withPage(context, listUrl, async (page) => {
-    return await parseProblemList(page);
-  });
+  // 1. Collect every page of the authored problems list.
+  // Note: /problem/author/{user}/1 always returns page 1 regardless of ?page=;
+  // the true paginated endpoint is /problemset with author_type=1.
+  const listUrl = `https://www.acmicpc.net/problemset?sort=no_asc&author=${config.user}&author_type=1`;
+  const cachePath = join(config.outputDir, 'authored-cache.json');
+  log.info(`출제한 문제 목록 수집 시작: ${listUrl}`);
+  const problems = await paginateProblemList(
+    context,
+    listUrl,
+    rateLimiter,
+    log,
+    { cachePath, resume: config.resume },
+  );
   log.info(`출제한 문제 ${problems.length}개 발견`);
 
   // Apply limit
