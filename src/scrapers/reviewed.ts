@@ -4,7 +4,8 @@ import type { BackupConfig } from '../types/index.js';
 import { RateLimiter } from '../core/rate-limiter.js';
 import { ProgressTracker } from '../core/progress.js';
 import { createLogger, withPage, ensureDir } from '../core/utils.js';
-import { parseProblemPage, parseProblemList } from '../parsers/problem.js';
+import { parseProblemPage } from '../parsers/problem.js';
+import { paginateProblemList } from '../parsers/paginate.js';
 import { writeJson, writeHtml } from '../writers/json-writer.js';
 
 export async function scrapeReviewed(
@@ -15,12 +16,19 @@ export async function scrapeReviewed(
 ): Promise<void> {
   const log = createLogger('reviewed');
 
-  // 1. Navigate to reviewed problems list
-  const listUrl = `https://www.acmicpc.net/problem/author/${config.user}/19`;
-  log.info(`검수한 문제 목록 페이지 이동: ${listUrl}`);
-  const problems = await withPage(context, listUrl, async (page) => {
-    return await parseProblemList(page);
-  });
+  // 1. Collect every page of the reviewed problems list.
+  // Note: /problem/author/{user}/19 always returns page 1 regardless of ?page=;
+  // the true paginated endpoint is /problemset with author_type=19.
+  const listUrl = `https://www.acmicpc.net/problemset?sort=no_asc&author=${config.user}&author_type=19`;
+  const cachePath = join(config.outputDir, 'reviewed-cache.json');
+  log.info(`검수한 문제 목록 수집 시작: ${listUrl}`);
+  const problems = await paginateProblemList(
+    context,
+    listUrl,
+    rateLimiter,
+    log,
+    { cachePath, resume: config.resume },
+  );
   log.info(`검수한 문제 ${problems.length}개 발견`);
 
   // Apply limit
