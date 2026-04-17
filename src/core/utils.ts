@@ -17,7 +17,7 @@ const LANG_EXT: Record<string, string> = {
   'C': '.c', 'C11': '.c', 'C99': '.c', 'C90': '.c', 'C2x': '.c',
   'Java': '.java', 'Java 11': '.java', 'Java 15': '.java',
   'Python': '.py', 'Python 3': '.py', 'PyPy3': '.py',
-  'Rust': '.rs', 'Rust 2018': '.rs',
+  'Rust': '.rs', 'Rust 2018': '.rs', 'Rust 2021': '.rs', 'Rust 2024': '.rs',
   'node.js': '.js', 'Text': '.txt',
   'Assembly (64bit)': '.asm', 'Assembly (32bit)': '.asm',
 };
