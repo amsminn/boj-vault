@@ -35,9 +35,16 @@ export async function parseBoardPost(page: Page): Promise<BoardPostMeta> {
       document.querySelector('h2');
     const title = (titleEl?.textContent ?? '').trim().replace(/\s+/g, ' ');
 
-    // Author — first /user/{handle} link (BOJ places author metadata before body)
+    // Author — scope to the post metadata block so we don't pick up a /user/ link from
+    // BOJ's nav/profile menu. The post author link lives inside the first
+    // `<div class="col-md-12 comment"> .panel-heading` (the post body panel,
+    // NOT a comment — BOJ re-uses the `.comment` class for the body).
     let author = '';
-    const userLinks = Array.from(document.querySelectorAll('a[href^="/user/"]'));
+    const postMetaScope =
+      document.querySelector('div.col-md-12.comment .panel-heading') ??
+      document.querySelector('.page-header') ??
+      document.body;
+    const userLinks = Array.from(postMetaScope.querySelectorAll('a[href^="/user/"]'));
     for (const a of userLinks) {
       const href = a.getAttribute('href') ?? '';
       const m = href.match(/\/user\/([^/?#]+)/);
