@@ -10,6 +10,9 @@ import { scrapeSubmissions } from './scrapers/submissions.js';
 import { scrapeAuthored } from './scrapers/authored.js';
 import { scrapeReviewed } from './scrapers/reviewed.js';
 import { scrapeSolved } from './scrapers/solved.js';
+import { scrapeCorrected } from './scrapers/corrected.js';
+import { scrapeDataAdded } from './scrapers/dataadded.js';
+import { scrapeBoard } from './scrapers/board.js';
 import { buildSubmissionIndex, buildMetadata } from './writers/index-builder.js';
 import { writeJson } from './writers/json-writer.js';
 
@@ -47,6 +50,9 @@ export async function runBackup(config: BackupConfig): Promise<void> {
     solvedProblems: 0,
     authoredProblems: 0,
     reviewedProblems: 0,
+    correctedProblems: 0,
+    dataAddedProblems: 0,
+    boardPosts: 0,
   };
 
   try {
@@ -90,7 +96,28 @@ export async function runBackup(config: BackupConfig): Promise<void> {
       display.complete('맞은 문제 본문 백업 완료');
     }
 
-    // 6. Save final metadata
+    // 6. Corrected contributions backup
+    if (shouldRun('corrected')) {
+      display.startPhase('오타 수정 기여 문제 백업 시작...');
+      stats.correctedProblems = await scrapeCorrected(context, config, rateLimiter, progress);
+      display.complete('오타 수정 기여 문제 백업 완료');
+    }
+
+    // 7. Data-added contributions backup
+    if (shouldRun('dataadded')) {
+      display.startPhase('데이터 추가 기여 문제 백업 시작...');
+      stats.dataAddedProblems = await scrapeDataAdded(context, config, rateLimiter, progress);
+      display.complete('데이터 추가 기여 문제 백업 완료');
+    }
+
+    // 8. Board posts backup
+    if (shouldRun('board')) {
+      display.startPhase('게시판 글 백업 시작...');
+      stats.boardPosts = await scrapeBoard(context, config, rateLimiter, progress);
+      display.complete('게시판 글 백업 완료');
+    }
+
+    // 9. Save final metadata
     const metadata = buildMetadata(config.user, stats);
     metadata.completedAt = new Date().toISOString();
     await writeJson(join(config.outputDir, 'metadata.json'), metadata);
