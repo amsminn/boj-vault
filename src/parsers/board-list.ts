@@ -1,0 +1,90 @@
+import type { Page } from 'playwright';
+import type { BoardListRow } from '../types/index.js';
+import { categorySlugFromId, categoryNameFromId } from './board-categories.js';
+
+/**
+ * Parse rows from /board/search/all/author/{user} (or a category-filtered variant).
+ *
+ * Filtering:
+ *   - Skips rows whose author handle does not match `filterAuthor`. BOJ pins
+ *     site-wide notices to the top of every board search result regardless of
+ *     the author query, so the caller must pass the expected author to exclude
+ *     them.
+ *
+ * Fields:
+ *   - categoryId/slug/name: derived from the /board/list/{N} link in the
+ *     category cell — NOT from the visible Korean text. The text also contains
+ *     "1376번" when the post is tied to a problem.
+ *   - problemId: present only when the category cell has a /problem/{N} link.
+ *   - relativeDate: raw text like "8달 전". Exact timestamp comes later from
+ *     /board/view/{id} (see board-post.ts).
+ */
+export async function parseBoardList(
+  page: Page,
+  filterAuthor: string,
+): Promise<BoardListRow[]> {
+  const rawRows = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('table tbody tr'));
+    return rows.map((row) => {
+      const titleCell = row.querySelector('td:nth-child(1)');
+      const titleLink = titleCell?.querySelector('a[href^="/board/view/"]');
+      const titleHref = titleLink?.getAttribute('href') ?? '';
+      const postIdMatch = titleHref.match(/\/board\/view\/(\d+)/);
+
+      const catCell = row.querySelector('td:nth-child(2)');
+      const catListLink = catCell?.querySelector('a[href^="/board/list/"]');
+      const catHref = catListLink?.getAttribute('href') ?? '';
+      const catIdMatch = catHref.match(/\/board\/list\/(\d+)/);
+
+      const problemLink = catCell?.querySelector('a[href^="/problem/"]');
+      const problemHref = problemLink?.getAttribute('href') ?? '';
+      const problemMatch = problemHref.match(/\/problem\/(\d+)/);
+
+      const authorLink = row.querySelector('td:nth-child(4) a[href^="/user/"]');
+      const authorText = authorLink?.textContent?.trim() ?? '';
+
+      const dateCell = row.querySelector('td:last-child');
+      const relativeDate = dateCell?.textContent?.trim() ?? '';
+
+      return {
+        postId: postIdMatch ? parseInt(postIdMatch[1], 10) : 0,
+        title: titleLink?.textContent?.trim() ?? '',
+        categoryIdFromHref: catIdMatch ? parseInt(catIdMatch[1], 10) : 0,
+        categoryVisibleText: catListLink?.textContent?.trim() ?? '',
+        problemId: problemMatch ? parseInt(problemMatch[1], 10) : 0,
+        author: authorText,
+        relativeDate,
+      };
+    });
+  });
+
+  const result: BoardListRow[] = [];
+  for (const r of rawRows) {
+    if (!r.postId || !r.author) continue;
+    if (r.author !== filterAuthor) continue;
+    const slug = r.categoryIdFromHref ? categorySlugFromId(r.categoryIdFromHref) : 'category-unknown';
+    const name = r.categoryIdFromHref
+      ? categoryNameFromId(r.categoryIdFromHref) || r.categoryVisibleText
+      : r.categoryVisibleText;
+    result.push({
+      postId: r.postId,
+      title: r.title,
+      categoryId: r.categoryIdFromHref,
+      categorySlug: slug,
+      categoryName: name,
+      problemId: r.problemId > 0 ? r.problemId : undefined,
+      author: r.author,
+      relativeDate: r.relativeDate,
+    });
+  }
+  return result;
+}
+
+export async function getBoardNextPageHref(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll('a'));
+    const next = candidates.find((a) => a.textContent?.trim() === '다음 페이지');
+    if (!next) return null;
+    return next.getAttribute('href');
+  });
+}
