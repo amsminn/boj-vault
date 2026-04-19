@@ -157,6 +157,30 @@ export interface BoardIndex {
 }
 ```
 
+### Board pagination cache shape
+
+`board` 스크래퍼는 page-number 기반이 아닌 cursor 기반이므로 `paginateProblemList`를 그대로 재사용하지 않고 별도 캐시 스키마를 쓴다:
+
+```json
+// board-cache.json
+{
+  "complete": false,
+  "nextCursor": "/board/search/all/author/amsminn/79000",
+  "posts": [ /* BoardPost 최소 필드 (postId, title, categorySlug, categoryId, problemId?, author, writtenAt, commentCount) */ ]
+}
+```
+
+정상 완주 시 `complete: true`, `nextCursor: null`.
+
+## Default run order & `--only` behavior
+
+`--only` 미지정 시: 기존 순서(`profile → authored → reviewed → submissions → solved`) **뒤에** `corrected → dataadded → board` 세 단계가 추가되어 모두 실행된다. 각 단계는 독립적이며 한 단계 실패가 다른 단계를 막지 않는다 (기존 try/catch 패턴 유지).
+
+## Screenshots: contributions vs. board
+
+- `corrected`/`dataadded`: `reviewed`와 동일하게 `problem.png`(full-page) 저장 — 문제 페이지의 시각적 스냅샷이 렌더링 변경에 대비한 백업 가치가 있음.
+- `board`: `post.png` 저장 **안 함**. `post.html`이 본문 + 댓글을 모두 포함하는 "진실의 원천"이며, 게시글 렌더링은 문제 페이지보다 단순해서 HTML만으로 복구 가능하다고 판단.
+
 ## Pagination hard rules (verification checklist)
 
 아래는 구현 후 **테스트로 강제**되어야 하는 불변 조건이다. 과거에 `authored`/`reviewed`가 1페이지만 수집하는 버그가 있었으므로(#4, 커밋 `1664577`, `d369bc4`), 신규 스크래퍼도 동일 함정을 반복하지 않도록 명시적으로 검증한다.
