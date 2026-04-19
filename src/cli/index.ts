@@ -23,7 +23,7 @@ program
   .option('--delay <seconds>', '요청 간 딜레이 (초)', '4')
   .addOption(
     new Option('--only <category>', '특정 카테고리만 백업')
-      .choices(['submissions', 'authored', 'reviewed', 'solved', 'profile']),
+      .choices(['submissions', 'authored', 'reviewed', 'solved', 'profile', 'corrected', 'dataadded', 'board']),
   )
   .option('--resume', '중단된 백업 재개', false)
   .option('--limit <count>', '카테고리별 최대 수집 개수')

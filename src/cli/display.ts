@@ -35,16 +35,25 @@ export class Display {
     solvedProblems: number;
     authoredProblems: number;
     reviewedProblems: number;
+    correctedProblems: number;
+    dataAddedProblems: number;
+    boardPosts: number;
   }): void {
     const border = '─'.repeat(40);
+
+    const row = (label: string, value: number): string =>
+      `${BOLD}${CYAN}│${RESET}  ${label.padEnd(12)} ${String(value).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`;
 
     console.log(`\n${BOLD}${CYAN}┌${border}┐${RESET}`);
     console.log(`${BOLD}${CYAN}│${RESET}  ${BOLD}백업 완료 요약${RESET}${' '.repeat(24)}${BOLD}${CYAN}│${RESET}`);
     console.log(`${BOLD}${CYAN}├${border}┤${RESET}`);
-    console.log(`${BOLD}${CYAN}│${RESET}  제출        ${String(stats.submissions).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`);
-    console.log(`${BOLD}${CYAN}│${RESET}  맞은 문제   ${String(stats.solvedProblems).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`);
-    console.log(`${BOLD}${CYAN}│${RESET}  출제한 문제 ${String(stats.authoredProblems).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`);
-    console.log(`${BOLD}${CYAN}│${RESET}  검수한 문제 ${String(stats.reviewedProblems).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`);
+    console.log(row('제출', stats.submissions));
+    console.log(row('맞은 문제', stats.solvedProblems));
+    console.log(row('출제한 문제', stats.authoredProblems));
+    console.log(row('검수한 문제', stats.reviewedProblems));
+    console.log(row('오타 수정', stats.correctedProblems));
+    console.log(row('데이터 추가', stats.dataAddedProblems));
+    console.log(row('게시판 글', stats.boardPosts));
     console.log(`${BOLD}${CYAN}└${border}┘${RESET}`);
   }
 }
