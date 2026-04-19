@@ -6,6 +6,9 @@ export interface ProgressData {
   completedProblems: Set<number>;
   completedAuthored: Set<number>;
   completedReviewed: Set<number>;
+  completedCorrected: Set<number>;
+  completedDataAdded: Set<number>;
+  completedBoard: Set<number>;
   phase?: string;
 }
 
@@ -14,6 +17,9 @@ interface ProgressJSON {
   completedProblems: number[];
   completedAuthored: number[];
   completedReviewed: number[];
+  completedCorrected: number[];
+  completedDataAdded: number[];
+  completedBoard: number[];
   phase?: string;
 }
 
@@ -28,6 +34,9 @@ export class ProgressTracker {
       completedProblems: new Set(),
       completedAuthored: new Set(),
       completedReviewed: new Set(),
+      completedCorrected: new Set(),
+      completedDataAdded: new Set(),
+      completedBoard: new Set(),
     };
   }
 
@@ -62,6 +71,9 @@ export class ProgressTracker {
       completedProblems: [...this.data.completedProblems],
       completedAuthored: [...this.data.completedAuthored],
       completedReviewed: [...this.data.completedReviewed],
+      completedCorrected: [...this.data.completedCorrected],
+      completedDataAdded: [...this.data.completedDataAdded],
+      completedBoard: [...this.data.completedBoard],
       phase: this.data.phase,
     };
 
@@ -87,6 +99,9 @@ export class ProgressTracker {
       completedProblems: new Set(json.completedProblems ?? []),
       completedAuthored: new Set(json.completedAuthored ?? []),
       completedReviewed: new Set(json.completedReviewed ?? []),
+      completedCorrected: new Set(json.completedCorrected ?? []),
+      completedDataAdded: new Set(json.completedDataAdded ?? []),
+      completedBoard: new Set(json.completedBoard ?? []),
       phase: json.phase,
     };
   }
@@ -101,6 +116,12 @@ export class ProgressTracker {
         return this.data.completedAuthored;
       case 'reviewed':
         return this.data.completedReviewed;
+      case 'corrected':
+        return this.data.completedCorrected;
+      case 'dataadded':
+        return this.data.completedDataAdded;
+      case 'board':
+        return this.data.completedBoard;
       default:
         throw new Error(`Unknown progress category: ${category}`);
     }
