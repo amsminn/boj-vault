@@ -53,6 +53,38 @@ export interface ReviewedProblem {
   fetchedAt: string;
 }
 
+// Board posts
+export interface BoardListRow {
+  postId: number;
+  title: string;
+  categoryId: number;      // numeric category ID from /board/list/{N} link
+  categorySlug: string;    // 'typo' | 'question' | 'free' | ...
+  categoryName: string;    // visible Korean label, e.g. '오타/오역/요청'
+  problemId?: number;      // present when the row's category cell includes a problem link
+  author: string;          // BOJ handle of the row author (used to filter out pinned notices)
+  relativeDate: string;    // "2일 전" / "8달 전" — raw text from the list page
+}
+
+export interface BoardPost {
+  postId: number;
+  title: string;
+  categoryId: number;
+  categorySlug: string;
+  categoryName: string;
+  problemId?: number;
+  author: string;
+  writtenAt: string;       // exact ISO timestamp parsed from /board/view/{id}
+  commentCount: number;
+  fetchedAt: string;
+}
+
+export interface BoardIndex {
+  totalCount: number;
+  byCategory: Record<string, number>;
+  posts: (Pick<BoardPost, 'postId' | 'title' | 'categorySlug' | 'categoryName' | 'problemId' | 'author' | 'writtenAt' | 'commentCount'> & { path: string })[];
+  lastUpdated: string;
+}
+
 // Index files
 export interface SubmissionIndex {
   totalCount: number;
@@ -77,6 +109,9 @@ export interface BackupMetadata {
     solvedProblems: number;
     authoredProblems: number;
     reviewedProblems: number;
+    correctedProblems: number;
+    dataAddedProblems: number;
+    boardPosts: number;
   };
 }
 
@@ -86,7 +121,7 @@ export interface BackupConfig {
   cdpPort: number;
   outputDir: string;
   delay: number;
-  only?: string;   // 'submissions' | 'authored' | 'reviewed' | 'solved' | 'profile'
+  only?: string;   // 'submissions' | 'authored' | 'reviewed' | 'solved' | 'profile' | 'corrected' | 'dataadded' | 'board'
   resume: boolean;
   limit?: number;  // max items to collect per category
 }
