@@ -26,24 +26,27 @@ export async function parseBoardList(
   const rawRows = await page.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('table tbody tr'));
     return rows.map((row) => {
-      const titleCell = row.querySelector('td:nth-child(1)');
-      const titleLink = titleCell?.querySelector('a[href^="/board/view/"]');
+      // Anchor on href prefixes instead of column positions so future column
+      // additions/reorders don't silently shift data into the wrong field.
+      const titleLink = row.querySelector('a[href^="/board/view/"]');
       const titleHref = titleLink?.getAttribute('href') ?? '';
       const postIdMatch = titleHref.match(/\/board\/view\/(\d+)/);
 
-      const catCell = row.querySelector('td:nth-child(2)');
-      const catListLink = catCell?.querySelector('a[href^="/board/list/"]');
+      const catListLink = row.querySelector('a[href^="/board/list/"]');
       const catHref = catListLink?.getAttribute('href') ?? '';
       const catIdMatch = catHref.match(/\/board\/list\/(\d+)/);
 
-      const problemLink = catCell?.querySelector('a[href^="/problem/"]');
+      const problemLink = row.querySelector('a[href^="/problem/"]');
       const problemHref = problemLink?.getAttribute('href') ?? '';
       const problemMatch = problemHref.match(/\/problem\/(\d+)/);
 
-      const authorLink = row.querySelector('td:nth-child(4) a[href^="/user/"]');
+      const authorLink = row.querySelector('a[href^="/user/"]');
       const authorText = authorLink?.textContent?.trim() ?? '';
 
-      const dateCell = row.querySelector('td:last-child');
+      // Date cell: the last <td> that contains no <a> (date column is text-only).
+      const dateCell = Array.from(row.querySelectorAll('td'))
+        .reverse()
+        .find((td) => !td.querySelector('a'));
       const relativeDate = dateCell?.textContent?.trim() ?? '';
 
       return {
@@ -60,8 +63,8 @@ export async function parseBoardList(
 
   const result: BoardListRow[] = [];
   for (const r of rawRows) {
-    if (!r.postId || !r.author) continue;
-    if (r.author !== filterAuthor) continue;
+    if (!r.postId || !r.author) continue; // skip malformed/empty rows (separators, etc.)
+    if (r.author !== filterAuthor) continue; // skip pinned site-wide notices
     const slug = r.categoryIdFromHref ? categorySlugFromId(r.categoryIdFromHref) : 'category-unknown';
     const name = r.categoryIdFromHref
       ? categoryNameFromId(r.categoryIdFromHref) || r.categoryVisibleText
