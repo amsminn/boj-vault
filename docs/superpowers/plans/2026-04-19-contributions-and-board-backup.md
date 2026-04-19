@@ -37,6 +37,7 @@
 - `src/types/index.ts` — add `BoardPost`, `BoardListRow`, `BoardIndex`, extend `BackupMetadata.stats` + `BackupConfig.only`
 - `src/core/progress.ts` — extend `ProgressData` + category switch
 - `src/cli/index.ts` — extend `--only` choices
+- `src/cli/display.ts` — extend `summary()` signature + render three new rows
 - `src/index.ts` — wire three phases into `runBackup`, extend `stats`
 - `src/writers/index-builder.ts` — extend `BackupMetadata.stats` shape
 - `README.md` — 사용법, 백업 대상, 출력 구조, Changelog
@@ -288,11 +289,12 @@ git commit -m "feat(progress): track corrected/dataadded/board completion"
 
 ---
 
-### Task 3: Extend `metadata` builder + CLI `--only` choices
+### Task 3: Extend `metadata` builder + CLI `--only` choices + `Display.summary`
 
 **Files:**
 - Modify: `src/writers/index-builder.ts`
 - Modify: `src/cli/index.ts`
+- Modify: `src/cli/display.ts`
 
 - [ ] **Step 3.1: Extend `buildMetadata` — no code change needed, but verify**
 
@@ -314,16 +316,53 @@ to:
       .choices(['submissions', 'authored', 'reviewed', 'solved', 'profile', 'corrected', 'dataadded', 'board']),
 ```
 
-- [ ] **Step 3.3: Typecheck**
+- [ ] **Step 3.3: Extend `Display.summary` signature + rendered rows**
+
+`src/cli/display.ts` hardcodes the 4-field stats shape in its `summary()` parameter and renders only those four rows. Without this step, the three new counters silently drop from the completion box even though `runBackup` computes them.
+
+Replace the `summary()` method (current lines 33-49) with:
+
+```typescript
+  summary(stats: {
+    submissions: number;
+    solvedProblems: number;
+    authoredProblems: number;
+    reviewedProblems: number;
+    correctedProblems: number;
+    dataAddedProblems: number;
+    boardPosts: number;
+  }): void {
+    const border = '─'.repeat(40);
+
+    const row = (label: string, value: number): string =>
+      `${BOLD}${CYAN}│${RESET}  ${label.padEnd(12)} ${String(value).padStart(20)}${' '.repeat(4)}${BOLD}${CYAN}│${RESET}`;
+
+    console.log(`\n${BOLD}${CYAN}┌${border}┐${RESET}`);
+    console.log(`${BOLD}${CYAN}│${RESET}  ${BOLD}백업 완료 요약${RESET}${' '.repeat(24)}${BOLD}${CYAN}│${RESET}`);
+    console.log(`${BOLD}${CYAN}├${border}┤${RESET}`);
+    console.log(row('제출', stats.submissions));
+    console.log(row('맞은 문제', stats.solvedProblems));
+    console.log(row('출제한 문제', stats.authoredProblems));
+    console.log(row('검수한 문제', stats.reviewedProblems));
+    console.log(row('오타 수정', stats.correctedProblems));
+    console.log(row('데이터 추가', stats.dataAddedProblems));
+    console.log(row('게시판 글', stats.boardPosts));
+    console.log(`${BOLD}${CYAN}└${border}┘${RESET}`);
+  }
+```
+
+Note: the `row()` helper uses `padEnd(12)` for the label; Korean characters render as 2 columns in most terminals, so `제출`(2ch→4col) through `검수한 문제`(5ch→10col) fit within 12. If your terminal renders Korean as 1-column (rare), the right border may shift slightly — visual only, not functional.
+
+- [ ] **Step 3.4: Typecheck**
 
 Run: `npx tsc --noEmit`
-Expected: errors still in `src/index.ts` (stats shape) from Task 1 — to be fixed in Task 11. No new errors.
+Expected: errors still in `src/index.ts` (stats shape) from Task 1 — to be fixed in Task 12. No new errors.
 
-- [ ] **Step 3.4: Commit**
+- [ ] **Step 3.5: Commit**
 
 ```bash
-git add src/cli/index.ts
-git commit -m "feat(cli): add --only choices for corrected/dataadded/board"
+git add src/cli/index.ts src/cli/display.ts
+git commit -m "feat(cli): add --only choices + summary rows for corrected/dataadded/board"
 ```
 
 ---
@@ -1791,15 +1830,26 @@ export async function scrapeBoard(
   for (const row of limited) {
     if (progress.isCompleted('board', row.postId)) {
       log.info(`건너뜀 (이미 완료): #${row.postId} ${row.title}`);
+      // Re-use the previous run's post.json so writtenAt/commentCount aren't
+      // zeroed out on resume. Fall back to list-row data if the file is gone
+      // (e.g. user deleted output/ between runs).
+      const priorPath = join(config.outputDir, 'board', row.categorySlug, String(row.postId), 'post.json');
+      let prior: BoardPost | null = null;
+      try {
+        const raw = await import('node:fs/promises').then((m) => m.readFile(priorPath, 'utf-8'));
+        prior = JSON.parse(raw) as BoardPost;
+      } catch {
+        prior = null;
+      }
       indexEntries.push({
         postId: row.postId,
-        title: row.title,
+        title: prior?.title ?? row.title,
         categorySlug: row.categorySlug,
         categoryName: row.categoryName,
         problemId: row.problemId,
-        author: row.author,
-        writtenAt: '',              // we don't re-fetch to find writtenAt for already-completed posts
-        commentCount: 0,
+        author: prior?.author ?? row.author,
+        writtenAt: prior?.writtenAt ?? '',
+        commentCount: prior?.commentCount ?? 0,
         path: `board/${row.categorySlug}/${row.postId}/`,
       });
       byCategory[row.categorySlug] = (byCategory[row.categorySlug] ?? 0) + 1;
