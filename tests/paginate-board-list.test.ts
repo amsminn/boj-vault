@@ -36,7 +36,7 @@ import {
   paginateBoardList,
   loadBoardListCache,
   saveBoardListCache,
-} from '../src/parsers/board-list.js';
+} from '../src/parsers/board-paginate.js';
 
 const noopLimiter = {
   wait: () => Promise.resolve(),
