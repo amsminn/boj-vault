@@ -9,6 +9,11 @@ describe('parseSourceProblemId logic', () => {
     return match ? parseInt(match[1], 10) : 0;
   }
 
+  function extractContestProblemHrefFromSourcePage(html: string): string {
+    const match = html.match(/href="(\/contest\/problem\/\d+\/\d+)"/);
+    return match ? match[1] : '';
+  }
+
   it('extracts problem ID from source page link', () => {
     const html = '<a href="/problem/12345">12345 — Some Title</a>';
     expect(extractProblemIdFromSourcePage(html)).toBe(12345);
@@ -27,5 +32,10 @@ describe('parseSourceProblemId logic', () => {
   it('does not match contest problem links', () => {
     const html = '<a href="/contest/problem/963/1">Contest Problem</a>';
     expect(extractProblemIdFromSourcePage(html)).toBe(0);
+  });
+
+  it('extracts contest problem href when no canonical problem link exists', () => {
+    const html = '<a href="/contest/problem/1664/6">F</a>';
+    expect(extractContestProblemHrefFromSourcePage(html)).toBe('/contest/problem/1664/6');
   });
 });

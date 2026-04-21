@@ -17,6 +17,7 @@ let mockPhase2: (url: string) => unknown = () => ({
   sourceCode: '',
   resolvedProblemId: 0,
 });
+let mockContestRedirect: (url: string) => unknown = () => 0;
 
 vi.mock('../src/core/utils.js', async () => {
   const actual = await vi.importActual('../src/core/utils.js');
@@ -25,6 +26,7 @@ vi.mock('../src/core/utils.js', async () => {
     withPage: async (_ctx: unknown, url: string, _fn: unknown) => {
       calledUrls.push(url);
       if (url.includes('/source/')) return mockPhase2(url);
+      if (url.includes('/contest/problem/')) return mockContestRedirect(url);
       return mockPhase1(url); // Phase 1: submission list
     },
   };
@@ -81,6 +83,7 @@ describe('scrapeSubmissions — resume 점프 동작', () => {
     calledUrls.length = 0;
     mockPhase1 = () => ({ subs: [], morePages: false });
     mockPhase2 = () => ({ sourceCode: '', resolvedProblemId: 0 });
+    mockContestRedirect = () => 0;
   });
 
   afterEach(async () => {
@@ -329,5 +332,31 @@ describe('scrapeSubmissions — resume 점프 동작', () => {
     expect(meta.submissionId).toBe(88888);
     expect(meta.contestId).toBe(500);
     expect(meta.problemId).toBe(0);
+  });
+
+  it('contest submission: source 페이지에 contest 링크만 있으면 리다이렉트로 실제 ID를 해결', async () => {
+    mockPhase1 = () => ({
+      subs: [{ ...makeMeta(77777, 0), contestId: 1664 }],
+      morePages: false,
+    });
+
+    mockPhase2 = () => ({
+      sourceCode: 'int main() {}',
+      resolvedProblemId: 0,
+      contestProblemHref: '/contest/problem/1664/6',
+    });
+
+    mockContestRedirect = () => 27939;
+
+    const progress = new ProgressTracker(join(tempDir, 'progress.json'));
+    const result = await scrapeSubmissions(
+      {} as BrowserContext,
+      makeConfig(tempDir, false),
+      noopLimiter as any,
+      progress,
+    );
+
+    expect(result[0].problemId).toBe(27939);
+    expect(calledUrls).toContain('https://www.acmicpc.net/contest/problem/1664/6');
   });
 });
