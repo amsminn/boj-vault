@@ -117,6 +117,26 @@ export async function parseSourceProblemId(page: Page): Promise<number> {
 }
 
 /**
+ * Extract a contest problem link from the /source/{submissionId} page.
+ *
+ * Some contest submissions no longer expose a direct `/problem/{id}` link on
+ * the source page, but still link to `/contest/problem/{contestId}/{localNum}`.
+ * Returns an empty string if no contest problem link is found.
+ */
+export async function parseSourceContestProblemHref(page: Page): Promise<string> {
+  return page.evaluate(`
+    (() => {
+      const links = document.querySelectorAll('a[href^="/contest/problem/"]');
+      for (const link of links) {
+        const href = link.getAttribute('href') || '';
+        if (/^\\/contest\\/problem\\/\\d+\\/\\d+$/.test(href)) return href;
+      }
+      return '';
+    })()
+  `) as Promise<string>;
+}
+
+/**
  * Check if there's a next page link in the pagination.
  *
  * Looks for `#next_page` or a pagination link containing `>` or `다음`.

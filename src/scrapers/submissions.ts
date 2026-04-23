@@ -7,6 +7,7 @@ import { ProgressTracker } from '../core/progress.js';
 import {
   parseSubmissionTable,
   parseSourceCode,
+  parseSourceContestProblemHref,
   parseSourceProblemId,
   hasNextPage,
 } from '../parsers/submission.js';
@@ -26,6 +27,16 @@ export interface SubmissionListCache {
 }
 
 const CACHE_FILENAME = 'submissions-cache.json';
+
+function extractProblemIdFromProblemUrl(url: string): number {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/^\/problem\/(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
+  } catch {
+    return 0;
+  }
+}
 
 export async function loadCache(outputDir: string): Promise<SubmissionListCache | null> {
   try {
@@ -239,32 +250,59 @@ export async function scrapeSubmissions(
 
     const sourceUrl = `https://www.acmicpc.net/source/${submissionId}`;
 
-    const { sourceCode, resolvedProblemId } = await withPage(context, sourceUrl, async (page) => {
-      // Check if redirected to login page
-      if (page.url().includes('/login')) {
-        log.error(
-          `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
-        );
-        return { sourceCode: '', resolvedProblemId: 0 };
-      }
+    const { sourceCode, resolvedProblemId, contestProblemHref } = await withPage(
+      context,
+      sourceUrl,
+      async (page) => {
+        // Check if redirected to login page
+        if (page.url().includes('/login')) {
+          log.error(
+            `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
+          );
+          return { sourceCode: '', resolvedProblemId: 0, contestProblemHref: '' };
+        }
 
-      const [code, pid] = await Promise.all([
-        parseSourceCode(page),
-        parseSourceProblemId(page),
-      ]);
-      return { sourceCode: code, resolvedProblemId: pid };
-    });
+        const [code, pid, contestHref] = await Promise.all([
+          parseSourceCode(page),
+          parseSourceProblemId(page),
+          parseSourceContestProblemHref(page),
+        ]);
+        return {
+          sourceCode: code,
+          resolvedProblemId: pid,
+          contestProblemHref: contestHref,
+        };
+      },
+    );
+
+    let fallbackProblemId = 0;
+    if (resolvedProblemId === 0 && contestProblemHref) {
+      const contestProblemUrl = new URL(contestProblemHref, sourceUrl).toString();
+      fallbackProblemId = await withPage(context, contestProblemUrl, async (page) => {
+        if (page.url().includes('/login')) {
+          log.error(
+            `로그인이 필요합니다. Chrome에서 BOJ에 로그인되어 있는지 확인하세요.`,
+          );
+          return 0;
+        }
+        return extractProblemIdFromProblemUrl(page.url());
+      });
+    }
+
+    const finalProblemId = resolvedProblemId || fallbackProblemId;
 
     if (sourceCode) {
       submission.sourceCode = sourceCode;
     }
 
     // Patch problemId for contest submissions (Phase 1 sets problemId=0)
-    if (resolvedProblemId > 0 && submission.problemId === 0) {
+    if (finalProblemId > 0 && submission.problemId === 0) {
       log.info(
-        `제출 ${submissionId}: 대회 문제 ID 확인 → ${resolvedProblemId}`,
+        resolvedProblemId > 0
+          ? `제출 ${submissionId}: 대회 문제 ID 확인 → ${finalProblemId}`
+          : `제출 ${submissionId}: 대회 링크 리다이렉트로 문제 ID 확인 → ${finalProblemId}`,
       );
-      submission.problemId = resolvedProblemId;
+      submission.problemId = finalProblemId;
     }
 
     // Save submission files
